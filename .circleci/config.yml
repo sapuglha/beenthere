@@ -1,7 +1,8 @@
+# - based on github.com/android/android-ktx/.circleci/config.yml - on 20180208
+
 version: 2
 
 # these act as configuration variables or "functions"
-# - based on github.com/android/android-ktx/.circleci/config.yml - on 20180208
 references:
   workspace: &workspace
     ~/repo
@@ -35,15 +36,18 @@ references:
         - ~/.gradle/caches
         - ~/.gradle/wrapper
 
+  # make it consistent when attaching to the workspace
+  attach_workspace: &attach_workspace
+    attach_workspace:
+      at: *workspace
+
+  # these uploaded files will be used on the Firebase Test Lab run
   persist_to_workspace: &persist_to_workspace
     persist_to_workspace:
       root: .
       paths:
         - ftl-tests
-        - build
-  attach_workspace: &attach_workspace
-    attach_workspace:
-      at: *workspace
+        - app/build
 
 # actual jobs
 jobs:
@@ -61,24 +65,20 @@ jobs:
           name: Compile
           command: ./gradlew assemble assembleAndroidTest --no-daemon
       - store_artifacts:
-          path: build/outputs/aar
-      - store_artifacts:
-          path: build/libs
-      - store_artifacts:
-          path: build/distributions/
+          path: app/build/outputs
 
       # run all checks
       - run:
           name: JVM Tests & Lint
           command: ./gradlew check --no-daemon
       - store_test_results:
-          path: build/test-results
+          path: app/build/test-results
       - store_artifacts:
-          path: build/test-results
+          path: app/build/test-results
       - store_artifacts:
-          path: build/reports/lint-results.html
+          path: app/build/reports/lint-results.html
       - store_test_results:
-          path: build/reports
+          path: app/build/reports
 
       - *save_cache
 
@@ -90,18 +90,23 @@ jobs:
 
     steps:
       - *attach_workspace
+
       - run:
           name: Setup Google Cloud auth
           command: ftl-tests/setup.sh
+
       - run:
           name: Run tests on Firebase Test Lab
           command: ftl-tests/run-tests.sh
-      - run:
-          name: Download results
-          command: ftl-tests/download-results.sh firebase_test_results
-          when: always
+
+#      - run:
+#          name: Download results
+#          command: ftl-tests/download-results.sh firebase_test_results
+#          when: always
+
       - store_artifacts:
           path: firebase_test_results
+
       - store_test_results:
           path: firebase_test_results
 
@@ -114,51 +119,3 @@ workflows:
       - test_instrumented:
           requires:
             - build
-
-
-# =============================================
-# original
-#
-#jobs:
-#  build:
-#    working_directory: *workspace
-#
-#    docker:
-#      - image: circleci/android:api-27-alpha
-#
-#    environment:
-#      JVM_OPTS: -Xmx3200m
-#
-#    steps:
-#      - checkout
-#
-#      - restore_cache:
-#          key: jars-{{ checksum "build.gradle" }}-{{ checksum  "app/build.gradle" }}
-#
-#      - run:
-#          name: Download Dependencies
-#          command: ./gradlew androidDependencies
-#
-#      - save_cache:
-#          paths:
-#            - ~/.gradle
-#          key: jars-{{ checksum "build.gradle" }}-{{ checksum  "app/build.gradle" }}
-#
-#      - run:
-#          name: Run lint checks
-#          command: ./gradlew lint
-#
-#      - run:
-#          name: Run Debug Tests
-#          command: ./gradlew testDebug
-#
-#      - run:
-#          name: Run Release Tests
-#          command: ./gradlew testRelease
-#
-#      - store_artifacts:
-#          path: app/build/reports
-#          destination: reports
-#
-#      - store_test_results:
-#          path: app/build/test-results
